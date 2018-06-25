@@ -11,7 +11,7 @@ spec:
         path: /dev/fuse
     - name: output
       hostPath:
-        path: /Users/clange/argo-demonstrator/HiggsTo4Leptons/output
+        path: ${PWD}/output
   volumeClaimTemplates:                 #define volume, same syntax as k8s Pod spec
   - metadata:
       name: workdir                     #name of volume claim
@@ -30,13 +30,13 @@ spec:
     # Using dag instead of steps here
     dag:
       tasks:
-      - name: step1-mc
+      - name: step1-data
         template: cmssw-step1
         arguments:
           parameters:
           - name: command
             value: "demoanalyzer_cfg_level3data.py"
-      - name: step1-data
+      - name: step1-mc
         template: cmssw-step1
         arguments:
           parameters:
