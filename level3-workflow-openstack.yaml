@@ -1,0 +1,169 @@
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: csi-cvmfs
+provisioner: csi-cvmfsplugin
+parameters:
+  repository: cms.cern.ch
+---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: csi-cvmfs
+provisioner: csi-cvmfsplugin
+parameters:
+  repository: cms-opendata-conddb.cern.ch
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: csi-cvmfs-pvc-cms
+spec:
+  accessModes:
+  - ReadOnlyMany
+  resources:
+    requests:
+      storage: 5Gi
+  storageClassName: csi-cvmfs
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: csi-cvmfs-pvc-opendata
+spec:
+  accessModes:
+  - ReadOnlyMany
+  resources:
+    requests:
+      storage: 5Gi
+  storageClassName: csi-cvmfs
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: higgsto4leptons-
+spec:
+  entrypoint: level3
+
+  volumes:
+    - name: mypvc-cms
+      persistentVolumeClaim:
+        claimName: csi-cvmfs-pvc-cms
+        readOnly: true
+    - name: mypvc-opendata
+      persistentVolumeClaim:
+        claimName: csi-cvmfs-pvc-opendata
+        readOnly: true
+    - name: output
+      hostPath:
+        path: /Users/clange/argo-demonstrator/HiggsTo4Leptons/output
+  volumeClaimTemplates:                 #define volume, same syntax as k8s Pod spec
+  - metadata:
+      name: workdir                     #name of volume claim
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      resources:
+        requests:
+          storage: 1Gi                  #Gi => 1024 * 1024 * 1024
+
+
+  # This spec contains three templates:
+  # - level3 described the overall workflow (using dag tasks)
+  # - cmssw-step1 and cmssw-step2 contain the commands to be run
+  templates:
+  - name: level3
+    # Using dag instead of steps here
+    dag:
+      tasks:
+      - name: step1-data
+        template: cmssw-step1
+        arguments:
+          parameters:
+          - name: command
+            value: "demoanalyzer_cfg_level3data.py"
+      - name: step1-mc
+        template: cmssw-step1
+        arguments:
+          parameters:
+          - name: command
+            value: "demoanalyzer_cfg_level3MC.py"
+      - name: step2
+        dependencies: [step1-mc, step1-data]
+        template: cmssw-step2
+        arguments:
+          parameters:
+          - name: command
+            value: "M4Lnormdatall_lvl3.cc"
+
+  # This is the template for running CMSSW
+  - name: cmssw-step1
+    inputs:
+      parameters:
+      - name: command
+    script:
+      image: clelange/cmssw-slc6-only
+      volumeMounts:
+        - name: mypvc-cms
+          mountPath: /cvmfs/cms.cern.ch
+        - name: mypvc-opendata
+          mountPath: /cvmfs/cms-opendata-conddb.cern.ch
+        - name: workdir
+          mountPath: /mnt/vol
+        # - name: cvmfs
+        #   mountPath: /cvmfs
+      securityContext:
+        privileged: true
+        capabilities:
+          add:
+            - SYS_ADMIN
+      command: [bash]
+      source: |
+        echo "::: Setting up CMS environment..."
+        source /cvmfs/cms.cern.ch/cmsset_default.sh
+        echo "::: Setting up CMS environment... [done]"
+        scramv1 project CMSSW_5_3_32
+        cd CMSSW_5_3_32/src || exit
+        eval `scramv1 runtime -sh`
+        git clone git://github.com/cms-opendata-analyses/HiggsExample20112012.git || exit
+        scram b || exit
+        cd HiggsExample20112012/Level3 || exit
+        cmsRun {{inputs.parameters.command}} || exit
+        cp *.root /mnt/vol
+        ls /mnt/vol
+
+  # This template produces the plot
+  - name: cmssw-step2
+    inputs:
+      parameters:
+      - name: command
+    script:
+      image: clelange/cmssw-slc6-only
+      volumeMounts:
+        - name: mypvc-cms
+          mountPath: /cvmfs/cms.cern.ch
+        - name: mypvc-opendata
+          mountPath: /cvmfs/cms-opendata-conddb.cern.ch
+        - name: workdir
+          mountPath: /mnt/vol
+        - name: output
+          mountPath: /mnt/out
+      securityContext:
+        privileged: true
+        capabilities:
+          add:
+            - SYS_ADMIN
+      command: [bash]
+      source: |
+        export DISPLAY=localhost:0.0
+        echo "::: Setting up CMS environment..."
+        source /cvmfs/cms.cern.ch/cmsset_default.sh
+        echo "::: Setting up CMS environment... [done]"
+        scramv1 project CMSSW_5_3_32
+        cd CMSSW_5_3_32/src || exit
+        eval `scramv1 runtime -sh`
+        git clone git://github.com/cms-opendata-analyses/HiggsExample20112012.git || exit
+        cd HiggsExample20112012/Level3 || exit
+        cp /mnt/vol/*.root .
+        root -b -l {{inputs.parameters.command}}
+        cp mass4l_combine_userlvl3.pdf /mnt/out || exit
+        ls /mnt/out
