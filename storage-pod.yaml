@@ -1,0 +1,65 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: pvc-cvmfs-cms
+spec:
+  accessModes:
+  - ReadOnlyMany
+  resources:
+    requests:
+      storage: 5Gi
+  storageClassName: csi-cvmfs-cms
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: pvc-cvmfs-cms-opendata-conddb
+spec:
+  accessModes:
+  - ReadOnlyMany
+  resources:
+    requests:
+      storage: 5Gi
+  storageClassName: csi-cvmfs-cms-opendata-conddb
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: pvc-cephfs-cms
+spec:
+  accessModes:
+  - ReadWriteMany
+  resources:
+    requests:
+      storage: 1Gi
+  storageClassName: csi-cephfs-cms
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: storage-pod
+spec:
+  containers:
+   - name: storage-pod
+     image: busybox
+     command: ["tail", "-f", "/dev/null"]
+     volumeMounts:
+       - mountPath: /cvmfs/cms.cern.ch
+         name: vol-cvmfs-cms
+       - mountPath: /cvmfs/cms-opendata-conddb.cern.ch
+         name: vol-cvmfs-cms-opendata-conddb
+       - mountPath: /data
+         name: vol-cephfs-cms
+  volumes:
+  - name: vol-cvmfs-cms
+    persistentVolumeClaim:
+      claimName: pvc-cvmfs-cms
+      readOnly: true
+  - name: vol-cvmfs-cms-opendata-conddb
+    persistentVolumeClaim:
+      claimName: pvc-cvmfs-cms-opendata-conddb
+      readOnly: true
+  - name: vol-cephfs-cms
+    persistentVolumeClaim:
+      claimName: pvc-cephfs-cms
+      readOnly: false

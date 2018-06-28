@@ -1,43 +1,3 @@
-apiVersion: storage.k8s.io/v1
-kind: StorageClass
-metadata:
-  name: csi-cvmfs
-provisioner: csi-cvmfsplugin
-parameters:
-  repository: cms.cern.ch
----
-apiVersion: storage.k8s.io/v1
-kind: StorageClass
-metadata:
-  name: csi-cvmfs
-provisioner: csi-cvmfsplugin
-parameters:
-  repository: cms-opendata-conddb.cern.ch
----
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: csi-cvmfs-pvc-cms
-spec:
-  accessModes:
-  - ReadOnlyMany
-  resources:
-    requests:
-      storage: 5Gi
-  storageClassName: csi-cvmfs
----
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: csi-cvmfs-pvc-opendata
-spec:
-  accessModes:
-  - ReadOnlyMany
-  resources:
-    requests:
-      storage: 5Gi
-  storageClassName: csi-cvmfs
----
 apiVersion: argoproj.io/v1alpha1
 kind: Workflow
 metadata:
@@ -45,27 +5,34 @@ metadata:
 spec:
   entrypoint: level3
 
-  volumes:
-    - name: mypvc-cms
-      persistentVolumeClaim:
-        claimName: csi-cvmfs-pvc-cms
-        readOnly: true
-    - name: mypvc-opendata
-      persistentVolumeClaim:
-        claimName: csi-cvmfs-pvc-opendata
-        readOnly: true
-    - name: output
-      hostPath:
-        path: /Users/clange/argo-demonstrator/HiggsTo4Leptons/output
-  volumeClaimTemplates:                 #define volume, same syntax as k8s Pod spec
+  volumeClaimTemplates:  #define volume, same syntax as k8s Pod spec
   - metadata:
-      name: workdir                     #name of volume claim
+      name: pvc-cvmfs-cms
     spec:
-      accessModes: [ "ReadWriteOnce" ]
+      accessModes:
+      - ReadOnlyMany
       resources:
         requests:
-          storage: 1Gi                  #Gi => 1024 * 1024 * 1024
-
+          storage: 5Gi
+      storageClassName: csi-cvmfs-cms
+  - metadata:
+      name: pvc-cvmfs-cms-opendata-conddb
+    spec:
+      accessModes:
+      - ReadOnlyMany
+      resources:
+        requests:
+          storage: 5Gi
+      storageClassName: csi-cvmfs-cms-opendata-conddb
+  - metadata:
+      name: pvc-cephfs-cms
+    spec:
+      accessModes:
+      - ReadWriteMany
+      resources:
+        requests:
+          storage: 1Gi
+      storageClassName: csi-cephfs-cms
 
   # This spec contains three templates:
   # - level3 described the overall workflow (using dag tasks)
@@ -103,21 +70,15 @@ spec:
     script:
       image: clelange/cmssw-slc6-only
       volumeMounts:
-        - name: mypvc-cms
-          mountPath: /cvmfs/cms.cern.ch
-        - name: mypvc-opendata
-          mountPath: /cvmfs/cms-opendata-conddb.cern.ch
-        - name: workdir
-          mountPath: /mnt/vol
-        # - name: cvmfs
-        #   mountPath: /cvmfs
-      securityContext:
-        privileged: true
-        capabilities:
-          add:
-            - SYS_ADMIN
+        - mountPath: /cvmfs/cms.cern.ch
+          name: pvc-cvmfs-cms
+        - mountPath: /cvmfs/cms-opendata-conddb.cern.ch
+          name: pvc-cvmfs-cms-opendata-conddb
+        - mountPath: /mnt/vol
+          name: pvc-cephfs-cms
       command: [bash]
       source: |
+        sudo chown $USER /mnt/vol
         echo "::: Setting up CMS environment..."
         source /cvmfs/cms.cern.ch/cmsset_default.sh
         echo "::: Setting up CMS environment... [done]"
@@ -129,7 +90,7 @@ spec:
         cd HiggsExample20112012/Level3 || exit
         cmsRun {{inputs.parameters.command}} || exit
         cp *.root /mnt/vol
-        ls /mnt/vol
+        ls -l /mnt/vol
 
   # This template produces the plot
   - name: cmssw-step2
@@ -139,21 +100,15 @@ spec:
     script:
       image: clelange/cmssw-slc6-only
       volumeMounts:
-        - name: mypvc-cms
-          mountPath: /cvmfs/cms.cern.ch
-        - name: mypvc-opendata
-          mountPath: /cvmfs/cms-opendata-conddb.cern.ch
-        - name: workdir
-          mountPath: /mnt/vol
-        - name: output
-          mountPath: /mnt/out
-      securityContext:
-        privileged: true
-        capabilities:
-          add:
-            - SYS_ADMIN
+        - mountPath: /cvmfs/cms.cern.ch
+          name: pvc-cvmfs-cms
+        - mountPath: /cvmfs/cms-opendata-conddb.cern.ch
+          name: pvc-cvmfs-cms-opendata-conddb
+        - mountPath: /mnt/vol
+          name: pvc-cephfs-cms
       command: [bash]
       source: |
+        sudo chown $USER /mnt/vol
         export DISPLAY=localhost:0.0
         echo "::: Setting up CMS environment..."
         source /cvmfs/cms.cern.ch/cmsset_default.sh

@@ -1,0 +1,38 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: test-cvmfs-
+spec:
+  entrypoint: ls-cvmfs
+
+  volumeClaimTemplates:  #define volume, same syntax as k8s Pod spec
+  - metadata:
+      name: pvc-cvmfs-cms
+    spec:
+      accessModes:
+      - ReadOnlyMany
+      resources:
+        requests:
+          storage: 5Gi
+      storageClassName: csi-cvmfs-cms
+  - metadata:
+      name: pvc-cvmfs-cms-opendata-conddb
+    spec:
+      accessModes:
+      - ReadOnlyMany
+      resources:
+        requests:
+          storage: 5Gi
+      storageClassName: csi-cvmfs-cms-opendata-conddb
+
+  templates:
+  - name: ls-cvmfs
+    container:
+      image: busybox
+      command: [ls]
+      args: ["/cvmfs", "/cvmfs/cms.cern.ch", "/cvmfs/cms-opendata-conddb.cern.ch"]
+      volumeMounts:
+        - mountPath: /cvmfs/cms.cern.ch
+          name: pvc-cvmfs-cms
+        - mountPath: /cvmfs/cms-opendata-conddb.cern.ch
+          name: pvc-cvmfs-cms-opendata-conddb
