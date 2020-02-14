@@ -2,7 +2,7 @@ apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
   name: csi-cvmfs-cms
-provisioner: csi-cvmfsplugin
+provisioner: cvmfs.csi.cern.ch
 parameters:
   repository: cms.cern.ch
 ---
@@ -10,6 +10,6 @@ apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
   name: csi-cvmfs-cms-opendata-conddb
-provisioner: csi-cvmfsplugin
+provisioner: cvmfs.csi.cern.ch
 parameters:
   repository: cms-opendata-conddb.cern.ch
