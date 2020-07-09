@@ -120,5 +120,5 @@ spec:
         cd HiggsExample20112012/Level3 || exit
         cp /mnt/vol/*.root .
         root -b -l {{inputs.parameters.command}}
-        cp mass4l_combine_userlvl3.pdf /mnt/out || exit
-        ls /mnt/out
+        cp mass4l_combine_userlvl3.pdf /mnt/vol || exit
+        ls /mnt/vol
