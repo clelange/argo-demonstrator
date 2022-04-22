@@ -50,6 +50,14 @@ brew install kubernetes-cli kubernetes-helm
 brew install argoproj/tap/argo
 ```
 
+Install argo workflows following the instructions.
+
+When using minikube, one has to mount the output directory (and keep it running):
+
+```shell
+minikube mount ./output:/data/ --uid 82 --gid 82
+```
+
 ### Installing CVMFS StorageClass
 
 _CERN OpenStack only_
@@ -173,6 +181,7 @@ argo submit level3-workflow-openstack.yaml
 On Mac OS X [level3-workflow.yaml](level3-workflow.yaml):
 
 ```shell
+export ARGO_NAMESPACE=argo
 argo submit level3-workflow.yaml
 ```
 

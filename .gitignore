@@ -1,1 +1,4 @@
+cvmfs
 cephfs-secret.yaml
+.DS_Store
+output
